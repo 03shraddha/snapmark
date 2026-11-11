@@ -453,6 +453,7 @@ final class Editor: NSObject, NSWindowDelegate {
         window.center()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         window.makeFirstResponder(canvas)
     }
 
@@ -508,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit SnapMark", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
         registerHotKey()
+        NSLog("SnapMark: started. Screen Recording permission: \(CGPreflightScreenCaptureAccess())")
     }
 
     // Ctrl+Shift+A. A Carbon hot key needs no Accessibility permission.
@@ -525,6 +527,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func capture() {
         guard !capturing else { return }
+        // Without Screen Recording permission the capture gives no image. Tell the user.
+        if !CGPreflightScreenCaptureAccess() {
+            NSLog("SnapMark: no Screen Recording permission")
+            CGRequestScreenCaptureAccess()
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "SnapMark needs Screen Recording permission"
+            alert.informativeText = "Open System Settings, then Privacy & Security, then Screen & System Audio Recording. Turn SnapMark on. Then quit SnapMark and open it again."
+            alert.addButton(withTitle: "Open Settings")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertFirstButtonReturn,
+               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
         capturing = true
         editor?.window.close()
 
@@ -534,13 +552,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         task.arguments = ["-i", "-c", "-x"]
-        task.terminationHandler = { [weak self] _ in
+        task.terminationHandler = { [weak self] proc in
+            let status = proc.terminationStatus
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.capturing = false
                 guard pb.changeCount != before,
                       let data = pb.data(forType: .png) ?? pb.data(forType: .tiff),
-                      let cg = NSBitmapImageRep(data: data)?.cgImage else { return }
+                      let cg = NSBitmapImageRep(data: data)?.cgImage else {
+                    NSLog("SnapMark: no image. screencapture status \(status), clipboard changed \(pb.changeCount != before)")
+                    return
+                }
+                NSLog("SnapMark: image \(cg.width) x \(cg.height), editor opens")
                 self.open(cg)
             }
         }
