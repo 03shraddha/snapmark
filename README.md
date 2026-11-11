@@ -24,8 +24,20 @@ Watch the [30 second demo with sound](demo.mp4). The [video](video) folder has t
 | Oval | O | Drag to draw an oval |
 | Pen | P | Draw freehand |
 | Blur | B | Drag over private data to pixelate it |
+| Step | N | Click to add the next number: 1, 2, 3 |
+| Spot | S | Drag over an area. The remainder goes dark |
 
 The toolbar has six colors and three sizes. **Cmd+Z** removes the last annotation. **Esc** cancels.
+
+## Why not the Mac tool
+
+macOS has Markup. You open it from the thumbnail that shows after a screenshot. SnapMark adds these items:
+
+- A blur tool.
+- Step numbers.
+- One key to copy. Markup saves a file first.
+- No file on the Desktop.
+- One key for each tool.
 
 ## How it works
 

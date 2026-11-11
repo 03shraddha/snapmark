@@ -54,6 +54,7 @@
   .key { display:inline-flex; align-items:center; justify-content:center; min-width:58px; height:58px; padding:0 16px; border-radius:12px;
          background:#fff; box-shadow:0 0 0 1.5px #d6d3cc, 0 4px 0 #d6d3cc; font-size:26px; font-weight:600; }
   .key.hit { background:var(--yellow); box-shadow:0 0 0 1.5px #d9ae00, 0 1px 0 #d9ae00; transform:translateY(3px); }
+  .pill { font-size:22px; font-weight:700; padding:8px 18px; border-radius:30px; background:var(--yellow); color:var(--ink); }
   .keys { display:flex; gap:10px; align-items:center; }
 
   #toast { position:absolute; left:50%; top:60px; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:28px; font-weight:600; padding:16px 30px; border-radius:40px; }
@@ -92,7 +93,7 @@
     <div class="win" id="editor">
       <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span style="margin-left:10px">SnapMark &nbsp;&nbsp; Enter: copy &nbsp;&nbsp; Esc: cancel &nbsp;&nbsp; Cmd+Z: undo</span></div>
       <div id="tools">
-        <div class="seg" id="toolseg"><span>Text</span><span>Arrow</span><span>Box</span><span>Oval</span><span>Pen</span><span>Blur</span></div>
+        <div class="seg" id="toolseg"><span>Text</span><span>Arrow</span><span>Box</span><span>Oval</span><span>Pen</span><span>Blur</span><span>Step</span><span>Spot</span></div>
         <div class="seg" id="colorseg">
           <span class="c"><i class="sw" style="background:var(--red)"></i></span><span class="c"><i class="sw" style="background:var(--yellow)"></i></span>
           <span class="c"><i class="sw" style="background:var(--green)"></i></span><span class="c"><i class="sw" style="background:var(--blue)"></i></span>
@@ -140,6 +141,7 @@ const PEN = [];
 for (let x = 85; x <= 835; x += 5) PEN.push([x, 92 + 4 * Math.sin((x - 85) / 26)]);
 
 const NOTE = 'start here';
+const STEPS = [[62, 62], [52, 236], [40, 541]];
 
 function makeShot(parent) {
   const el = document.createElement('div');
@@ -148,11 +150,13 @@ function makeShot(parent) {
     <div class="blurwrap"><canvas width="376" height="60"></canvas></div>
     <svg viewBox="0 0 920 670">
       <defs><filter id="sh" x="-10%" y="-30%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity=".45"/></filter></defs>
+      <path class="dim" fill="rgba(0,0,0,.6)" fill-rule="evenodd"/>
       <path class="pen" fill="none" stroke="${BLUE}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       <ellipse class="oval" fill="none" stroke="${GREEN}" stroke-width="4"/>
       <rect class="box" fill="none" stroke="${YELLOW}" stroke-width="4" rx="3"/>
       <line class="aline" stroke="${RED}" stroke-width="4" stroke-linecap="round"/>
       <path class="ahead" fill="${RED}"/>
+      <g class="steps"></g>
       <text class="note" x="772" y="166" font-family="Inter" font-weight="600" font-size="22" fill="${RED}" filter="url(#sh)"></text>
     </svg>`;
   parent.appendChild(el);
@@ -204,12 +208,21 @@ function makeShot(parent) {
       // blur
       const bw = q('.blurwrap');
       bw.style.width = 188 * s.blur + 'px'; bw.style.height = 30 * s.blur + 'px';
+      // spotlight: dim all, with a hole that grows
+      const sw = 884 * s.spot, sh = 108 * s.spot, r = Math.min(8, sw / 2, sh / 2);
+      q('.dim').setAttribute('d', s.spot > 0 ? `M0 0H920V670H0Z M${18 + r} 550h${sw - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${sh - 2 * r}a${r} ${r} 0 0 1 ${-r} ${r}h${-(sw - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${-r}v${-(sh - 2 * r)}a${r} ${r} 0 0 1 ${r} ${-r}Z` : '');
+      // step numbers
+      q('.steps').innerHTML = STEPS.map(([x, y], i) => {
+        const k = clamp(s.steps - i); if (k <= 0) return '';
+        const sc = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2);
+        return `<g transform="translate(${x} ${y}) scale(${sc})"><circle r="15" fill="${RED}" stroke="rgba(255,255,255,.9)" stroke-width="2"/><text y="6.5" text-anchor="middle" font-family="Inter" font-weight="700" font-size="18" fill="#fff">${i + 1}</text></g>`;
+      }).join('');
     }
   };
 }
 
 const shot = makeShot($('shotmain'));
-const DONE = { arrow: 1, text: 1, box: 1, oval: 1, pen: 1, blur: 1, caret: false };
+const DONE = { arrow: 1, text: 1, box: 1, oval: 1, pen: 1, blur: 1, steps: 3, spot: 1, caret: false };
 const sentShot = makeShot($('sentimg')); sentShot.el.style.transform = 'scale(.6)'; sentShot.update(DONE);
 const thumbShot = makeShot($('thumb')); thumbShot.el.style.transform = 'scale(.15)'; thumbShot.update(DONE);
 
@@ -228,15 +241,34 @@ const CUR = [
   [14.8, ...C(368, 7)], [14.95, ...C(368, 7)], [15.9, ...C(552, 45)],
   [16.8, ...C(85, 92)], [16.95, ...C(85, 92)], [18.3, ...C(835, 92)],
   [19.5, ...C(404, 146)], [19.7, ...C(404, 146)], [20.9, ...C(592, 176)],
-  [22.2, ...C(592, 176)], [23.3, 1420, 92], [24.4, 1420, 92],
+  [21.8, ...C(592, 176)],
 ];
+// The new scenes use their own clock n, from 0 to 5 seconds.
+const CURN = [
+  [0, ...C(592, 176)], [0.7, ...C(62, 62)], [0.85, ...C(62, 62)], [1.2, ...C(52, 236)], [1.35, ...C(52, 236)],
+  [1.75, ...C(40, 541)], [2.4, ...C(40, 541)], [3.0, ...C(18, 550)], [3.1, ...C(18, 550)], [4.1, ...C(902, 658)],
+];
+const CURB = [[21.8, ...C(902, 658)], [22.2, ...C(902, 658)], [23.3, 1420, 92], [24.4, 1420, 92]];
+const CAMN = [[0, 993, 292, 2.5], [0.7, 960, 450, 1.3], [2.4, 960, 450, 1.3], [3.0, 960, 560, 1.3]];
+const CAMB = [[21.8, 960, 560, 1.3], [22.5, 960, 470, 1]];
+const PILL = '<span class="pill">Not in Mac Markup</span>';
+const NCAPS = [
+  [0, 2.4, n => `${K('N', n < 0.5)}<span class="big">Step</span><span class="sub">Number the steps</span>${PILL}`],
+  [2.4, 5, n => `${K('S', n < 2.9)}<span class="big">Spotlight</span><span class="sub">Dim all but one area</span>`],
+];
+// Output time to source time. Some scenes play faster to keep the video at 30 seconds.
+const MAP = [[0, 0], [2.7, 2.7], [14.48, 18.6], [17.68, 21.8], [22.68, 26.8], [23.68, 28.3], [25.28, 29.9], [27.9, 32.9], [30, 35]];
+function srcTime(o) {
+  for (let i = 1; i < MAP.length; i++) if (o <= MAP[i][0]) { const a = MAP[i - 1], b = MAP[i]; return lerp(a[1], b[1], (o - a[0]) / (b[0] - a[0])); }
+  return 35;
+}
 // Camera: time, focus x, focus y, zoom. The focus point moves to the screen centre.
 const CAM = [
   [7.4, 960, 470, 1], [8.3, 1250, 250, 1.75], [11.9, 1250, 250, 1.75],
   [12.8, 960, 520, 1.5], [14.0, 960, 520, 1.5],
   [14.9, 960, 200, 1.8], [16.1, 960, 200, 1.8],
   [17.0, 960, 240, 1.45], [18.5, 960, 240, 1.45],
-  [19.5, 993, 292, 2.5], [21.5, 993, 292, 2.5], [22.5, 960, 470, 1],
+  [19.5, 993, 292, 2.5], [21.8, 993, 292, 2.5],
 ];
 function track(keys, t) {
   if (t <= keys[0][0]) return keys[0].slice(1);
@@ -259,15 +291,17 @@ const CAPS = [
   [12.0, 14.2, t => `${K('R', t < 12.5)}<span class="big">Box</span><span class="sub">Frame a detail</span>`],
   [14.2, 16.2, t => `${K('O', t < 14.7)}<span class="big">Oval</span><span class="sub">Circle a fact</span>`],
   [16.2, 18.6, t => `${K('P', t < 16.7)}<span class="big">Pen</span><span class="sub">Draw freehand</span>`],
-  [18.6, 21.8, t => `${K('B', t < 19.1)}<span class="big">Blur</span><span class="sub">Hide private data</span>`],
+  [18.6, 21.8, t => `${K('B', t < 19.1)}<span class="big">Blur</span><span class="sub">Hide private data</span>${PILL}`],
   [21.8, 23.3, () => `<span class="big">Six colors. Three sizes.</span><span class="keys">${K('⌘')}${K('Z')}</span><span class="sub">to undo</span>`],
-  [23.3, 24.9, t => `${K('Enter ⏎', t > 23.6 && t < 24.1)}<span class="big">Copy the image</span>`],
+  [23.3, 24.9, t => `${K('Enter ⏎', t > 23.6 && t < 24.1)}<span class="big">Copy the image</span><span class="sub">One key. No file on disk.</span>`],
   [24.9, 27.9, t => `<span class="keys">${K('⌘', t > 25.5 && t < 26.0)}${K('V', t > 25.5 && t < 26.0)}</span><span class="big">Paste it anywhere</span>`],
 ];
 
 const toolSpans = [...$('toolseg').children], colorSpans = [...$('colorseg').children];
 
-function render(t) {
+function drawAt(s) {
+  const n = s - 21.8, inNew = n >= 0 && n < 5;
+  const t = s < 21.8 ? s : inNew ? 21.8 : s - 5;
   // cards
   $('title').style.opacity = 1 - prog(t, 2.2, 2.7);
   $('title').style.display = t < 2.7 ? '' : 'none';
@@ -304,8 +338,9 @@ function render(t) {
   shot.update({
     arrow: ease(prog(t, 8.3, 9.2)), text: prog(t, 10.3, 11.5), caret: typing && Math.floor(t * 2.5) % 2 === 0,
     box: ease(prog(t, 12.85, 13.8)), oval: ease(prog(t, 14.95, 15.9)), pen: prog(t, 16.95, 18.3), blur: ease(prog(t, 19.7, 20.9)),
+    steps: clamp((n - 0.75) / 0.3) + clamp((n - 1.25) / 0.3) + clamp((n - 1.8) / 0.3), spot: ease(prog(n, 3.1, 4.1)),
   });
-  const tool = t < 7.75 ? 0 : t < 9.75 ? 1 : t < 12.15 ? 0 : t < 14.35 ? 2 : t < 16.35 ? 3 : t < 18.75 ? 4 : 5;
+  const tool = t < 7.75 ? 0 : t < 9.75 ? 1 : t < 12.15 ? 0 : t < 14.35 ? 2 : t < 16.35 ? 3 : t < 18.75 ? 4 : n < 0.15 ? 5 : n < 2.55 ? 6 : 7;
   const col = t < 12.15 ? 0 : t < 14.35 ? 1 : t < 16.35 ? 2 : t < 18.75 ? 3 : 0;
   toolSpans.forEach((s, i) => s.classList.toggle('on', i === tool));
   colorSpans.forEach((s, i) => s.classList.toggle('on', i === col));
@@ -324,11 +359,11 @@ function render(t) {
   $('sent').style.transform = `translateY(${lerp(24, 0, sk)}px)`;
 
   // camera
-  const [fx, fy, z] = track(CAM, t);
+  const [fx, fy, z] = inNew ? track(CAMN, n) : n >= 5 ? track(CAMB, t) : track(CAM, t);
   $('camera').style.transform = `translate(${960 - fx * z}px, ${470 - fy * z}px) scale(${z})`;
 
   // cursor
-  let [cx, cy] = track(CUR, t);
+  let [cx, cy] = inNew ? track(CURN, n) : n >= 5 ? track(CURB, t) : track(CUR, t);
   if (t > 16.95 && t < 18.3) { const p = PEN[Math.round((PEN.length - 1) * prog(t, 16.95, 18.3))]; [cx, cy] = C(p[0], p[1]); }
   const cur = $('cursor');
   cur.style.display = t >= 3.3 && t < 24.4 ? '' : 'none';
@@ -340,7 +375,7 @@ function render(t) {
 
   // caption
   let html = '', op = 0;
-  for (const [a, b, f] of CAPS) if (t >= a && t < b) { html = f(t); op = Math.min(prog(t, a, a + .22), 1 - prog(t, b - .18, b)); }
+  for (const [a, b, f] of inNew ? NCAPS : CAPS) { const t = inNew ? n : arguments[0] < 21.8 ? s : s - 5; if (t >= a && t < b) { html = f(t); op = Math.min(prog(t, a, a + .22), 1 - prog(t, b - .18, b)); } }
   $('caption').innerHTML = html;
   $('caption').style.opacity = op;
   $('caption').style.transform = `translateY(${lerp(10, 0, op)}px)`;
@@ -352,10 +387,10 @@ function render(t) {
   $('toast').style.transform = `translateX(-50%) translateY(${lerp(-20, 0, ease(to))}px)`;
 }
 
-window.render = render;
+window.render = o => drawAt(srcTime(o));
 const q = new URLSearchParams(location.search);
-if (q.has('t')) render(parseFloat(q.get('t')));
-else { const t0 = performance.now(); (function loop() { render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); })(); }
+if (q.has('t')) window.render(parseFloat(q.get('t')));
+else { const t0 = performance.now(); (function loop() { window.render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); })(); }
 </script>
 </body>
 </html>

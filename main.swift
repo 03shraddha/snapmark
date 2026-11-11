@@ -7,7 +7,7 @@ import CoreImage
 
 // MARK: - Model
 
-enum Tool: Int { case text, arrow, rect, oval, pen, blur }
+enum Tool: Int { case text, arrow, rect, oval, pen, blur, step, spot }
 
 enum Shape {
     case text(String, NSPoint, CGFloat)
@@ -16,6 +16,8 @@ enum Shape {
     case oval(NSRect)
     case pen([NSPoint])
     case blur(NSRect)
+    case step(Int, NSPoint, CGFloat)   // number, center, radius
+    case spot(NSRect)                  // the area that stays bright
 }
 
 struct Annotation {
@@ -82,8 +84,28 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     func drawAll() {
         let full = NSRect(origin: .zero, size: pointSize)
         base.draw(in: full, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
-        for a in annotations { draw(a) }
-        if let live = liveAnnotation() { draw(live) }
+        var all = annotations
+        if let live = liveAnnotation() { all.append(live) }
+        // Order: blurs, then the spotlight dim, then the marks. The marks stay bright.
+        for a in all { if case .blur = a.shape { draw(a) } }
+        let spots = all.compactMap { a -> NSRect? in if case .spot(let r) = a.shape { return r }; return nil }
+        if !spots.isEmpty, let cg = NSGraphicsContext.current?.cgContext {
+            cg.saveGState()
+            cg.beginTransparencyLayer(auxiliaryInfo: nil)
+            cg.setFillColor(NSColor.black.withAlphaComponent(0.6).cgColor)
+            cg.fill(full)
+            cg.setBlendMode(.clear)
+            for r in spots { cg.addPath(CGPath(roundedRect: r, cornerWidth: min(8, r.width / 2), cornerHeight: min(8, r.height / 2), transform: nil)) }
+            cg.fillPath()
+            cg.endTransparencyLayer()
+            cg.restoreGState()
+        }
+        for a in all {
+            switch a.shape {
+            case .blur, .spot: break
+            default: draw(a)
+            }
+        }
     }
 
     private func liveAnnotation() -> Annotation? {
@@ -95,7 +117,8 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         case .oval: shape = .oval(rectFrom(s, n))
         case .blur: shape = .blur(rectFrom(s, n))
         case .pen: shape = .pen(penPoints)
-        case .text: return nil
+        case .spot: shape = .spot(rectFrom(s, n))
+        case .text, .step: return nil
         }
         return Annotation(shape: shape, color: color, width: lineWidth)
     }
@@ -159,6 +182,22 @@ final class CanvasView: NSView, NSTextFieldDelegate {
             pixellated.draw(in: NSRect(origin: .zero, size: pointSize), from: .zero,
                             operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
             NSGraphicsContext.restoreGraphicsState()
+        case .step(let n, let c, let r):
+            let circle = NSBezierPath(ovalIn: NSRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+            circle.fill()
+            NSColor.white.withAlphaComponent(0.9).setStroke()
+            circle.lineWidth = max(1.5, r * 0.12)
+            circle.stroke()
+            let light = a.color == NSColor.white || a.color == NSColor.systemYellow
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: r * 1.15, weight: .bold),
+                .foregroundColor: light ? NSColor.black : NSColor.white,
+            ]
+            let str = "\(n)" as NSString
+            let size = str.size(withAttributes: attrs)
+            str.draw(at: NSPoint(x: c.x - size.width / 2, y: c.y - size.height / 2), withAttributes: attrs)
+        case .spot:
+            break   // drawAll draws all spotlights in one pass
         }
     }
 
@@ -200,6 +239,12 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         let p = clamp(convert(event.locationInWindow, from: nil))
         if tool == .text {
             if !hadField { beginText(at: p) }
+            return
+        }
+        if tool == .step {
+            let n = annotations.filter { if case .step = $0.shape { return true }; return false }.count + 1
+            annotations.append(Annotation(shape: .step(n, p, fontSize * 0.8), color: color, width: 0))
+            needsDisplay = true
             return
         }
         dragStart = p
@@ -292,7 +337,8 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         if cmd && key == "c" { onDone?(); return }
         if cmd && key == "w" { onCancel?(); return }
         if !cmd {
-            let map: [String: Tool] = ["t": .text, "a": .arrow, "r": .rect, "o": .oval, "p": .pen, "b": .blur]
+            let map: [String: Tool] = ["t": .text, "a": .arrow, "r": .rect, "o": .oval, "p": .pen, "b": .blur,
+                                       "n": .step, "s": .spot]
             if let t = map[key] { onToolKey?(t); return }
         }
         super.keyDown(with: event)
@@ -323,7 +369,7 @@ final class Editor: NSObject, NSWindowDelegate {
         let maxH = avail.height * 0.9 - barHeight - pad * 2 - 30
         let fit = min(1, maxW / canvas.pointSize.width, maxH / canvas.pointSize.height)
         let shown = NSSize(width: floor(canvas.pointSize.width * fit), height: floor(canvas.pointSize.height * fit))
-        let contentW = max(shown.width + pad * 2, 640)
+        let contentW = max(shown.width + pad * 2, 780)
         let contentH = shown.height + pad * 2 + barHeight
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: contentW, height: contentH),
@@ -345,7 +391,7 @@ final class Editor: NSObject, NSWindowDelegate {
         canvas.layer?.borderColor = NSColor.separatorColor.cgColor
         root.addSubview(canvas)
 
-        let names = ["Text", "Arrow", "Box", "Oval", "Pen", "Blur"]
+        let names = ["Text", "Arrow", "Box", "Oval", "Pen", "Blur", "Step", "Spot"]
         tools.segmentCount = names.count
         for (i, n) in names.enumerated() { tools.setLabel(n, forSegment: i) }
         tools.trackingMode = .selectOne
