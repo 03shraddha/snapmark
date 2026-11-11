@@ -2,9 +2,9 @@
 
 A small Mac menu bar app. Take a screenshot, annotate it, and paste it anywhere.
 
-![SnapMark demo](demo.gif)
+[![SnapMark demo](demo.gif)](demo.mp4)
 
-Watch the [30 second demo with sound](demo.mp4). The [video](video) folder has the source of the demo.
+Click the image to watch the [30 second demo with sound](demo.mp4). The [video](video) folder has the source of the demo.
 
 ## What it does
 
