@@ -1,0 +1,361 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SnapMark demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#faf9f6; --ink:#161616; --mute:#6b6b6b; --line:#e4e2dc; --red:#ff3b30; --yellow:#ffcc00; --green:#34c759; --blue:#007aff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { width:1920px; height:1080px; overflow:hidden; background:var(--bg); font-family:Inter, -apple-system, sans-serif; color:var(--ink); }
+  #stage { position:relative; width:1920px; height:1080px; overflow:hidden; }
+  #camera { position:absolute; left:0; top:0; width:1920px; height:1080px; transform-origin:0 0; }
+  .abs { position:absolute; }
+  .win { position:absolute; background:#fff; border-radius:14px; box-shadow:0 30px 80px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.08); overflow:hidden; }
+  .bar { height:32px; background:#ecebe7; display:flex; align-items:center; padding:0 12px; gap:7px; font-size:12px; color:var(--mute); }
+  .dot { width:11px; height:11px; border-radius:50%; background:#d3d1cb; }
+  .url { margin-left:14px; background:#fff; border-radius:6px; padding:3px 12px; flex:0 0 520px; }
+
+  /* page window */
+  #pagewin { left:297px; top:50px; width:1325px; height:860px; }
+  #pagewrap { position:relative; width:1325px; height:828px; overflow:hidden; }
+  #pageimg { width:1440px; height:900px; transform:scale(.92); transform-origin:0 0; display:block; }
+  #sel { position:absolute; box-shadow:0 0 0 4000px rgba(0,0,0,.5); outline:1.5px solid #fff; }
+  #flash { position:absolute; inset:0; background:#fff; }
+
+  /* editor */
+  #editor { left:442px; top:40px; width:1036px; height:825px; background:#f4f3ef; }
+  #editor .bar { height:28px; justify-content:flex-start; }
+  #tools { height:48px; display:flex; align-items:center; padding:0 12px; gap:12px; font-size:13px; font-weight:500; }
+  .seg { display:flex; background:#e6e4de; border-radius:8px; padding:2px; }
+  .seg span { padding:5px 11px; border-radius:6px; color:#444; }
+  .seg span.on { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.18); }
+  .sw { width:15px; height:15px; border-radius:50%; display:block; border:.5px solid rgba(0,0,0,.25); }
+  .seg span.c { padding:4px 6px; }
+  .btn { padding:5px 14px; border-radius:7px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.12); }
+  .btn.pri { background:var(--blue); color:#fff; box-shadow:none; }
+  .grow { flex:1; }
+
+  /* the screenshot with annotations */
+  .shot { position:absolute; left:0; top:0; width:920px; height:670px; transform-origin:0 0;
+          background:url(page.png) -250px -130px / 1440px 900px no-repeat; overflow:hidden; }
+  .shot svg { position:absolute; inset:0; width:920px; height:670px; overflow:visible; }
+  .shot .blurwrap { position:absolute; left:404px; top:146px; overflow:hidden; }
+  .shot canvas { display:block; width:188px; height:30px; image-rendering:pixelated; }
+
+  /* cursor */
+  #cursor { position:absolute; left:0; top:0; width:30px; height:30px; transform-origin:0 0; }
+
+  /* caption band */
+  #band { position:absolute; left:0; right:0; bottom:0; height:190px; background:linear-gradient(to bottom, rgba(250,249,246,0), var(--bg) 34%); }
+  #caption { position:absolute; left:0; right:0; bottom:44px; display:flex; align-items:center; justify-content:center; gap:22px; white-space:nowrap; }
+  #caption .big { font-size:46px; font-weight:700; letter-spacing:-.02em; }
+  #caption .sub { font-size:30px; font-weight:500; color:var(--mute); }
+  .key { display:inline-flex; align-items:center; justify-content:center; min-width:58px; height:58px; padding:0 16px; border-radius:12px;
+         background:#fff; box-shadow:0 0 0 1.5px #d6d3cc, 0 4px 0 #d6d3cc; font-size:26px; font-weight:600; }
+  .key.hit { background:var(--yellow); box-shadow:0 0 0 1.5px #d9ae00, 0 1px 0 #d9ae00; transform:translateY(3px); }
+  .keys { display:flex; gap:10px; align-items:center; }
+
+  #toast { position:absolute; left:50%; top:60px; transform:translateX(-50%); background:var(--ink); color:#fff; font-size:28px; font-weight:600; padding:16px 30px; border-radius:40px; }
+
+  /* title and end cards */
+  .card { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--bg); }
+  .card h1 { font-size:150px; font-weight:800; letter-spacing:-.045em; }
+  .card h1 mark { background:linear-gradient(transparent 58%, var(--yellow) 58%, var(--yellow) 92%, transparent 92%); color:inherit; padding:0 6px; }
+  .card p { font-size:42px; font-weight:500; color:var(--mute); margin-top:22px; }
+  .card .link { font-size:30px; font-weight:600; margin-top:54px; padding:14px 30px; border-radius:40px; background:var(--ink); color:#fff; }
+
+  /* chat */
+  #chat { left:410px; top:40px; width:1100px; height:830px; background:#fff; }
+  #chat .head { height:62px; border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 26px; font-size:21px; font-weight:700; }
+  .msg { display:flex; gap:16px; padding:20px 26px 0; }
+  .av { width:44px; height:44px; border-radius:10px; flex:none; }
+  .msg b { font-size:18px; } .msg .t { font-size:14px; color:var(--mute); margin-left:8px; font-weight:400; }
+  .msg p { font-size:19px; margin-top:4px; color:#2a2a2a; }
+  #sent { transform-origin:0 0; }
+  #sentimg { position:relative; width:552px; height:402px; margin-top:10px; border-radius:10px; overflow:hidden; box-shadow:0 0 0 1px var(--line); }
+  #composer { position:absolute; left:26px; right:26px; bottom:22px; min-height:60px; border:1.5px solid var(--line); border-radius:12px; padding:12px 16px; font-size:18px; color:#a3a199; display:flex; align-items:center; gap:14px; }
+  #thumb { position:relative; width:138px; height:100px; border-radius:8px; overflow:hidden; box-shadow:0 0 0 1px var(--line); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="camera">
+    <div class="win" id="pagewin">
+      <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="url">developers.openai.com/blog/pushing-voice-agents-further</span></div>
+      <div id="pagewrap">
+        <img id="pageimg" src="page.png">
+        <div id="sel"><div id="flash"></div></div>
+      </div>
+    </div>
+
+    <div class="win" id="editor">
+      <div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span style="margin-left:10px">SnapMark &nbsp;&nbsp; Enter: copy &nbsp;&nbsp; Esc: cancel &nbsp;&nbsp; Cmd+Z: undo</span></div>
+      <div id="tools">
+        <div class="seg" id="toolseg"><span>Text</span><span>Arrow</span><span>Box</span><span>Oval</span><span>Pen</span><span>Blur</span></div>
+        <div class="seg" id="colorseg">
+          <span class="c"><i class="sw" style="background:var(--red)"></i></span><span class="c"><i class="sw" style="background:var(--yellow)"></i></span>
+          <span class="c"><i class="sw" style="background:var(--green)"></i></span><span class="c"><i class="sw" style="background:var(--blue)"></i></span>
+          <span class="c"><i class="sw" style="background:#000"></i></span><span class="c"><i class="sw" style="background:#fff"></i></span>
+        </div>
+        <div class="seg"><span>S</span><span class="on">M</span><span>L</span></div>
+        <div class="grow"></div>
+        <div class="btn">Undo</div><div class="btn pri" id="copybtn">Copy</div>
+      </div>
+    </div>
+
+    <div id="shotmain"></div>
+
+    <div class="win" id="chat">
+      <div class="head"># launch-notes</div>
+      <div class="msg"><div class="av" style="background:#c9b8f5"></div><div><b>Maya</b><span class="t">10:41</span><p>Which part of the post do I read first?</p></div></div>
+      <div class="msg" id="sent"><div class="av" style="background:var(--yellow)"></div><div><b>You</b><span class="t">10:42</span><div id="sentimg"></div></div></div>
+      <div id="composer"><div id="thumb"></div><span id="ph">Message #launch-notes</span></div>
+    </div>
+
+    <svg id="cursor" viewBox="0 0 30 30">
+      <g id="cur-arrow"><path d="M3 2 L3 23 L8.6 18 L12.4 27 L16 25.4 L12.3 16.8 L20 16.4 Z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></g>
+      <g id="cur-cross" transform="translate(-12,-12)"><path d="M12 0 V24 M0 12 H24" stroke="#fff" stroke-width="4"/><path d="M12 0 V24 M0 12 H24" stroke="#111" stroke-width="1.6"/></g>
+    </svg>
+  </div>
+
+  <div id="band"></div>
+  <div id="caption"></div>
+  <div id="toast">Copied to the clipboard</div>
+
+  <div class="card" id="title"><h1>Snap<mark>Mark</mark></h1><p>Annotate a screenshot. Paste it anywhere.</p></div>
+  <div class="card" id="end"><h1>Snap<mark>Mark</mark></h1><p>Runs on your Mac. Sends nothing out.</p><div class="link">github.com/03shraddha/snapmark</div></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const ease = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const lerp = (a, b, k) => a + (b - a) * k;
+const RED = '#ff3b30', YELLOW = '#ffcc00', GREEN = '#34c759', BLUE = '#007aff';
+
+// Pen path: a wavy underline below the headline.
+const PEN = [];
+for (let x = 85; x <= 835; x += 5) PEN.push([x, 92 + 4 * Math.sin((x - 85) / 26)]);
+
+const NOTE = 'start here';
+
+function makeShot(parent) {
+  const el = document.createElement('div');
+  el.className = 'shot';
+  el.innerHTML = `
+    <div class="blurwrap"><canvas width="376" height="60"></canvas></div>
+    <svg viewBox="0 0 920 670">
+      <defs><filter id="sh" x="-10%" y="-30%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity=".45"/></filter></defs>
+      <path class="pen" fill="none" stroke="${BLUE}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <ellipse class="oval" fill="none" stroke="${GREEN}" stroke-width="4"/>
+      <rect class="box" fill="none" stroke="${YELLOW}" stroke-width="4" rx="3"/>
+      <line class="aline" stroke="${RED}" stroke-width="4" stroke-linecap="round"/>
+      <path class="ahead" fill="${RED}"/>
+      <text class="note" x="772" y="166" font-family="Inter" font-weight="600" font-size="22" fill="${RED}" filter="url(#sh)"></text>
+    </svg>`;
+  parent.appendChild(el);
+  const q = s => el.querySelector(s);
+  const cv = q('canvas');
+  const img = new Image();
+  img.src = 'page.png';
+  img.onload = () => {
+    // Pixelate the author names. One block is 8 CSS pixels.
+    const tiny = document.createElement('canvas');
+    tiny.width = 24; tiny.height = 4;
+    tiny.getContext('2d').drawImage(img, (250 + 404) * 2, (130 + 146) * 2, 376, 60, 0, 0, 24, 4);
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.drawImage(tiny, 0, 0, 24, 4, 0, 0, 376, 60);
+  };
+  return {
+    el,
+    update(s) {
+      // arrow
+      const A = [895, 138], B = [lerp(895, 850, s.arrow), lerp(138, 80, s.arrow)];
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      if (s.arrow > 0 && len > 2) {
+        const ux = (B[0] - A[0]) / len, uy = (B[1] - A[1]) / len;
+        const head = Math.min(18, len), half = head * .45;
+        const nx = B[0] - ux * head, ny = B[1] - uy * head;
+        q('.aline').setAttribute('x1', A[0]); q('.aline').setAttribute('y1', A[1]);
+        q('.aline').setAttribute('x2', B[0] - ux * head * .8); q('.aline').setAttribute('y2', B[1] - uy * head * .8);
+        q('.ahead').setAttribute('d', `M${B[0]} ${B[1]} L${nx - uy * half} ${ny + ux * half} L${nx + uy * half} ${ny - ux * half} Z`);
+        q('.aline').style.display = q('.ahead').style.display = '';
+      } else { q('.aline').style.display = q('.ahead').style.display = 'none'; }
+      // text
+      const n = Math.round(NOTE.length * s.text);
+      q('.note').textContent = NOTE.slice(0, n) + (s.caret ? '|' : '');
+      // box
+      const bx = q('.box');
+      bx.style.display = s.box > 0 ? '' : 'none';
+      bx.setAttribute('x', 372); bx.setAttribute('y', 300);
+      bx.setAttribute('width', 176 * s.box); bx.setAttribute('height', 140 * s.box);
+      // oval
+      const ov = q('.oval');
+      ov.style.display = s.oval > 0 ? '' : 'none';
+      const ow = 184 * s.oval, oh = 38 * s.oval;
+      ov.setAttribute('cx', 368 + ow / 2); ov.setAttribute('cy', 7 + oh / 2);
+      ov.setAttribute('rx', ow / 2); ov.setAttribute('ry', oh / 2);
+      // pen
+      const k = Math.round((PEN.length - 1) * s.pen);
+      q('.pen').setAttribute('d', s.pen > 0 ? 'M' + PEN.slice(0, k + 1).map(p => p.join(' ')).join(' L') : '');
+      // blur
+      const bw = q('.blurwrap');
+      bw.style.width = 188 * s.blur + 'px'; bw.style.height = 30 * s.blur + 'px';
+    }
+  };
+}
+
+const shot = makeShot($('shotmain'));
+const DONE = { arrow: 1, text: 1, box: 1, oval: 1, pen: 1, blur: 1, caret: false };
+const sentShot = makeShot($('sentimg')); sentShot.el.style.transform = 'scale(.6)'; sentShot.update(DONE);
+const thumbShot = makeShot($('thumb')); thumbShot.el.style.transform = 'scale(.15)'; thumbShot.update(DONE);
+
+// Canvas-local point to stage point, when the screenshot is in the editor.
+const EX = 454, EY = 116, ES = 1.1;
+const C = (x, y) => [EX + ES * x, EY + ES * y];
+// The same region, on the web page.
+const PX = 297 + .92 * 250, PY = 82 + .92 * 130, PS = .92;
+const SEL = { x: .92 * 250, y: .92 * 130, w: .92 * 920, h: .92 * 670 };
+
+const CUR = [
+  [3.3, 1560, 760], [4.8, PX, PY], [4.95, PX, PY], [6.1, PX + SEL.w, PY + SEL.h], [6.6, PX + SEL.w, PY + SEL.h],
+  [8.1, ...C(895, 138)], [8.3, ...C(895, 138)], [9.2, ...C(850, 80)],
+  [10.0, ...C(770, 158)], [10.25, ...C(770, 158)], [10.7, ...C(735, 205)], [11.9, ...C(735, 205)],
+  [12.7, ...C(372, 300)], [12.85, ...C(372, 300)], [13.8, ...C(548, 440)],
+  [14.8, ...C(368, 7)], [14.95, ...C(368, 7)], [15.9, ...C(552, 45)],
+  [16.8, ...C(85, 92)], [16.95, ...C(85, 92)], [18.3, ...C(835, 92)],
+  [19.5, ...C(404, 146)], [19.7, ...C(404, 146)], [20.9, ...C(592, 176)],
+  [22.2, ...C(592, 176)], [23.3, 1420, 92], [24.4, 1420, 92],
+];
+// Camera: time, focus x, focus y, zoom. The focus point moves to the screen centre.
+const CAM = [
+  [7.4, 960, 470, 1], [8.3, 1250, 250, 1.75], [11.9, 1250, 250, 1.75],
+  [12.8, 960, 520, 1.5], [14.0, 960, 520, 1.5],
+  [14.9, 960, 200, 1.8], [16.1, 960, 200, 1.8],
+  [17.0, 960, 240, 1.45], [18.5, 960, 240, 1.45],
+  [19.5, 993, 292, 2.5], [21.5, 993, 292, 2.5], [22.5, 960, 470, 1],
+];
+function track(keys, t) {
+  if (t <= keys[0][0]) return keys[0].slice(1);
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i][0]) {
+      const a = keys[i - 1], b = keys[i], k = ease(prog(t, a[0], b[0]));
+      return a.slice(1).map((v, j) => lerp(v, b[j + 1], k));
+    }
+  }
+  return keys[keys.length - 1].slice(1);
+}
+
+const K = (label, hit) => `<span class="key${hit ? ' hit' : ''}">${label}</span>`;
+const CAPS = [
+  [2.7, 4.4, t => `<span class="keys">${K('Ctrl', t > 3.5 && t < 4.1)}${K('Shift', t > 3.5 && t < 4.1)}${K('A', t > 3.5 && t < 4.1)}</span><span class="big">Press the hot key</span>`],
+  [4.4, 6.4, () => `<span class="big">Drag over any area</span>`],
+  [6.4, 7.6, () => `<span class="big">The editor opens</span>`],
+  [7.6, 9.6, t => `${K('A', t < 8.1)}<span class="big">Arrow</span><span class="sub">Point at what matters</span>`],
+  [9.6, 12.0, t => `${K('T', t < 10.1)}<span class="big">Text</span><span class="sub">Click and type</span>`],
+  [12.0, 14.2, t => `${K('R', t < 12.5)}<span class="big">Box</span><span class="sub">Frame a detail</span>`],
+  [14.2, 16.2, t => `${K('O', t < 14.7)}<span class="big">Oval</span><span class="sub">Circle a fact</span>`],
+  [16.2, 18.6, t => `${K('P', t < 16.7)}<span class="big">Pen</span><span class="sub">Draw freehand</span>`],
+  [18.6, 21.8, t => `${K('B', t < 19.1)}<span class="big">Blur</span><span class="sub">Hide private data</span>`],
+  [21.8, 23.3, () => `<span class="big">Six colors. Three sizes.</span><span class="keys">${K('⌘')}${K('Z')}</span><span class="sub">to undo</span>`],
+  [23.3, 24.9, t => `${K('Enter ⏎', t > 23.6 && t < 24.1)}<span class="big">Copy the image</span>`],
+  [24.9, 27.9, t => `<span class="keys">${K('⌘', t > 25.5 && t < 26.0)}${K('V', t > 25.5 && t < 26.0)}</span><span class="big">Paste it anywhere</span>`],
+];
+
+const toolSpans = [...$('toolseg').children], colorSpans = [...$('colorseg').children];
+
+function render(t) {
+  // cards
+  $('title').style.opacity = 1 - prog(t, 2.2, 2.7);
+  $('title').style.display = t < 2.7 ? '' : 'none';
+  const tk = ease(prog(t, 0.1, 0.9));
+  $('title').firstElementChild.style.transform = `translateY(${lerp(30, 0, tk)}px)`;
+  $('title').firstElementChild.style.opacity = tk;
+  $('title').lastElementChild.style.opacity = ease(prog(t, 0.7, 1.4));
+  $('end').style.opacity = prog(t, 28.0, 28.5);
+  $('end').style.display = t >= 28.0 ? '' : 'none';
+  $('end').querySelector('.link').style.opacity = ease(prog(t, 28.6, 29.1));
+
+  // page window and selection
+  $('pagewin').style.opacity = Math.min(prog(t, 2.5, 3.1), 1 - prog(t, 6.5, 7.2));
+  $('pagewin').style.transform = `scale(${lerp(.97, 1, ease(prog(t, 2.5, 3.2)))})`;
+  const sp = ease(prog(t, 4.95, 6.1));
+  const sel = $('sel');
+  sel.style.display = t >= 4.4 && t < 6.5 ? '' : 'none';
+  sel.style.left = SEL.x + 'px'; sel.style.top = SEL.y + 'px';
+  sel.style.width = SEL.w * sp + 'px'; sel.style.height = SEL.h * sp + 'px';
+  sel.style.boxShadow = `0 0 0 4000px rgba(0,0,0,${.5 * prog(t, 4.4, 4.8)})`;
+  $('flash').style.opacity = t < 6.15 ? 0 : .8 * (1 - prog(t, 6.2, 6.5));
+
+  // editor and screenshot
+  const edIn = ease(prog(t, 6.6, 7.4)), edOut = prog(t, 24.3, 24.9);
+  $('editor').style.opacity = edIn * (1 - edOut);
+  const mv = ease(prog(t, 6.45, 7.5));
+  const outS = lerp(1, .9, ease(edOut));
+  shot.el.style.display = t >= 6.3 ? '' : 'none';
+  shot.el.style.opacity = 1 - edOut;
+  shot.el.style.transform = `translate(${lerp(PX, EX, mv)}px, ${lerp(PY, EY, mv)}px) scale(${lerp(PS, ES, mv) * outS})`;
+  shot.el.style.boxShadow = `0 0 0 1px rgba(0,0,0,.15), 0 ${20 * (1 - mv) * mv * 4}px ${50 * (1 - mv) * mv * 4}px rgba(0,0,0,.3)`;
+  $('editor').style.transform = `scale(${outS})`;
+  const typing = t >= 10.0 && t < 11.9;
+  shot.update({
+    arrow: ease(prog(t, 8.3, 9.2)), text: prog(t, 10.3, 11.5), caret: typing && Math.floor(t * 2.5) % 2 === 0,
+    box: ease(prog(t, 12.85, 13.8)), oval: ease(prog(t, 14.95, 15.9)), pen: prog(t, 16.95, 18.3), blur: ease(prog(t, 19.7, 20.9)),
+  });
+  const tool = t < 7.75 ? 0 : t < 9.75 ? 1 : t < 12.15 ? 0 : t < 14.35 ? 2 : t < 16.35 ? 3 : t < 18.75 ? 4 : 5;
+  const col = t < 12.15 ? 0 : t < 14.35 ? 1 : t < 16.35 ? 2 : t < 18.75 ? 3 : 0;
+  toolSpans.forEach((s, i) => s.classList.toggle('on', i === tool));
+  colorSpans.forEach((s, i) => s.classList.toggle('on', i === col));
+  $('copybtn').style.filter = t > 23.6 && t < 24.1 ? 'brightness(.8)' : '';
+
+  // chat
+  $('chat').style.opacity = Math.min(prog(t, 24.9, 25.5), 1 - prog(t, 27.7, 28.2));
+  $('chat').style.display = t >= 24.9 ? '' : 'none';
+  const pasted = t >= 25.75, sent = t >= 26.5;
+  $('thumb').style.display = pasted && !sent ? '' : 'none';
+  $('thumb').style.transform = `scale(${lerp(.6, 1, ease(prog(t, 25.75, 26.0)))})`;
+  $('ph').style.display = pasted && !sent ? 'none' : '';
+  $('sent').style.display = sent ? '' : 'none';
+  const sk = ease(prog(t, 26.5, 26.9));
+  $('sent').style.opacity = sk;
+  $('sent').style.transform = `translateY(${lerp(24, 0, sk)}px)`;
+
+  // camera
+  const [fx, fy, z] = track(CAM, t);
+  $('camera').style.transform = `translate(${960 - fx * z}px, ${470 - fy * z}px) scale(${z})`;
+
+  // cursor
+  let [cx, cy] = track(CUR, t);
+  if (t > 16.95 && t < 18.3) { const p = PEN[Math.round((PEN.length - 1) * prog(t, 16.95, 18.3))]; [cx, cy] = C(p[0], p[1]); }
+  const cur = $('cursor');
+  cur.style.display = t >= 3.3 && t < 24.4 ? '' : 'none';
+  cur.style.opacity = Math.min(prog(t, 3.3, 3.6), 1 - prog(t, 24.1, 24.4));
+  cur.style.transform = `translate(${cx}px, ${cy}px) scale(${1.25 / Math.sqrt(z)})`;
+  const cross = t >= 4.4 && t < 6.3;
+  $('cur-cross').style.display = cross ? '' : 'none';
+  $('cur-arrow').style.display = cross ? 'none' : '';
+
+  // caption
+  let html = '', op = 0;
+  for (const [a, b, f] of CAPS) if (t >= a && t < b) { html = f(t); op = Math.min(prog(t, a, a + .22), 1 - prog(t, b - .18, b)); }
+  $('caption').innerHTML = html;
+  $('caption').style.opacity = op;
+  $('caption').style.transform = `translateY(${lerp(10, 0, op)}px)`;
+  $('band').style.opacity = t > 2.6 && t < 28.2 ? 1 : 0;
+
+  // toast
+  const to = Math.min(prog(t, 23.75, 23.95), 1 - prog(t, 24.6, 24.9));
+  $('toast').style.opacity = to;
+  $('toast').style.transform = `translateX(-50%) translateY(${lerp(-20, 0, ease(to))}px)`;
+}
+
+window.render = render;
+const q = new URLSearchParams(location.search);
+if (q.has('t')) render(parseFloat(q.get('t')));
+else { const t0 = performance.now(); (function loop() { render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); })(); }
+</script>
+</body>
+</html>
