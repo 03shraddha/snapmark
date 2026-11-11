@@ -23,11 +23,12 @@ Click the image to watch the [30 second demo with sound](demo.mp4). The [video](
 | Box | R | Drag to draw a rectangle |
 | Oval | O | Drag to draw an oval |
 | Pen | P | Draw freehand |
+| Marker | M | Draw a wide stroke that you can see through |
 | Blur | B | Drag over private data to pixelate it |
-| Step | N | Click to add the next number: 1, 2, 3 |
+| Step | N | Click to add the next number: 1, 2, 3. Each color has its own count. Option-click starts at 1 again |
 | Spot | S | Drag over an area. The remainder goes dark |
 
-The toolbar has six colors and three sizes. **Cmd+Z** removes the last annotation. **Esc** cancels.
+The toolbar has six colors and a Size slider. The slider sets the size of the pen, the marker, the lines, the text, and the step numbers. **Cmd+Z** removes the last annotation. **Esc** cancels.
 
 ## Why not the Mac tool
 

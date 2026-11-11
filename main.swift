@@ -7,7 +7,7 @@ import CoreImage
 
 // MARK: - Model
 
-enum Tool: Int { case text, arrow, rect, oval, pen, blur, step, spot }
+enum Tool: Int { case text, arrow, rect, oval, pen, marker, blur, step, spot }
 
 enum Shape {
     case text(String, NSPoint, CGFloat)
@@ -15,6 +15,7 @@ enum Shape {
     case rect(NSRect)
     case oval(NSRect)
     case pen([NSPoint])
+    case marker([NSPoint])             // a wide stroke that you can see through
     case blur(NSRect)
     case step(Int, NSPoint, CGFloat)   // number, center, radius
     case spot(NSRect)                  // the area that stays bright
@@ -74,6 +75,9 @@ final class CanvasView: NSView, NSTextFieldDelegate {
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+    // The first click on the window must draw. It must not only focus the window.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
 
     // MARK: Drawing
 
@@ -117,6 +121,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         case .oval: shape = .oval(rectFrom(s, n))
         case .blur: shape = .blur(rectFrom(s, n))
         case .pen: shape = .pen(penPoints)
+        case .marker: shape = .marker(penPoints)
         case .spot: shape = .spot(rectFrom(s, n))
         case .text, .step: return nil
         }
@@ -170,6 +175,17 @@ final class CanvasView: NSView, NSTextFieldDelegate {
             guard let first = pts.first else { return }
             let p = NSBezierPath()
             p.lineWidth = a.width
+            p.lineCapStyle = .round
+            p.lineJoinStyle = .round
+            p.move(to: first)
+            for pt in pts.dropFirst() { p.line(to: pt) }
+            if pts.count == 1 { p.line(to: first) }
+            p.stroke()
+        case .marker(let pts):
+            guard let first = pts.first else { return }
+            a.color.withAlphaComponent(0.4).setStroke()
+            let p = NSBezierPath()
+            p.lineWidth = a.width * 4
             p.lineCapStyle = .round
             p.lineJoinStyle = .round
             p.move(to: first)
@@ -242,7 +258,13 @@ final class CanvasView: NSView, NSTextFieldDelegate {
             return
         }
         if tool == .step {
-            let n = annotations.filter { if case .step = $0.shape { return true }; return false }.count + 1
+            // Each color has its own count. Option-click starts the count at 1 again.
+            var n = 1
+            if !event.modifierFlags.contains(.option) {
+                for a in annotations.reversed() {
+                    if case .step(let k, _, _) = a.shape, a.color == color { n = k + 1; break }
+                }
+            }
             annotations.append(Annotation(shape: .step(n, p, fontSize * 0.8), color: color, width: 0))
             needsDisplay = true
             return
@@ -256,7 +278,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         guard dragStart != nil else { return }
         let p = clamp(convert(event.locationInWindow, from: nil))
         dragNow = p
-        if tool == .pen { penPoints.append(p) }
+        if tool == .pen || tool == .marker { penPoints.append(p) }
         needsDisplay = true
     }
 
@@ -264,7 +286,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         defer { dragStart = nil; dragNow = nil; penPoints = []; needsDisplay = true }
         guard let s = dragStart, let n = dragNow, var a = liveAnnotation() else { return }
         let moved = hypot(n.x - s.x, n.y - s.y)
-        if tool != .pen && moved < 4 { return }
+        if tool != .pen && tool != .marker && moved < 4 { return }
         if case .blur = a.shape { a.width = 0 }
         annotations.append(a)
     }
@@ -337,7 +359,7 @@ final class CanvasView: NSView, NSTextFieldDelegate {
         if cmd && key == "c" { onDone?(); return }
         if cmd && key == "w" { onCancel?(); return }
         if !cmd {
-            let map: [String: Tool] = ["t": .text, "a": .arrow, "r": .rect, "o": .oval, "p": .pen, "b": .blur,
+            let map: [String: Tool] = ["t": .text, "a": .arrow, "r": .rect, "o": .oval, "p": .pen, "m": .marker, "b": .blur,
                                        "n": .step, "s": .spot]
             if let t = map[key] { onToolKey?(t); return }
         }
@@ -352,11 +374,10 @@ final class Editor: NSObject, NSWindowDelegate {
     let canvas: CanvasView
     private let tools = NSSegmentedControl()
     private let colors = NSSegmentedControl()
-    private let sizes = NSSegmentedControl()
+    private let sizes = NSSlider()
     var onClose: (() -> Void)?
 
     private let palette: [NSColor] = [.systemRed, .systemYellow, .systemGreen, .systemBlue, .black, .white]
-    private let sizeSteps: [(line: CGFloat, font: CGFloat)] = [(2, 14), (4, 20), (7, 30)]
 
     init(cgImage: CGImage) {
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -369,7 +390,7 @@ final class Editor: NSObject, NSWindowDelegate {
         let maxH = avail.height * 0.9 - barHeight - pad * 2 - 30
         let fit = min(1, maxW / canvas.pointSize.width, maxH / canvas.pointSize.height)
         let shown = NSSize(width: floor(canvas.pointSize.width * fit), height: floor(canvas.pointSize.height * fit))
-        let contentW = max(shown.width + pad * 2, 780)
+        let contentW = max(shown.width + pad * 2, 900)
         let contentH = shown.height + pad * 2 + barHeight
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: contentW, height: contentH),
@@ -391,7 +412,7 @@ final class Editor: NSObject, NSWindowDelegate {
         canvas.layer?.borderColor = NSColor.separatorColor.cgColor
         root.addSubview(canvas)
 
-        let names = ["Text", "Arrow", "Box", "Oval", "Pen", "Blur", "Step", "Spot"]
+        let names = ["Text", "Arrow", "Box", "Oval", "Pen", "Marker", "Blur", "Step", "Spot"]
         tools.segmentCount = names.count
         for (i, n) in names.enumerated() { tools.setLabel(n, forSegment: i) }
         tools.trackingMode = .selectOne
@@ -409,12 +430,19 @@ final class Editor: NSObject, NSWindowDelegate {
         colors.target = self
         colors.action = #selector(colorChanged)
 
-        sizes.segmentCount = 3
-        for (i, n) in ["S", "M", "L"].enumerated() { sizes.setLabel(n, forSegment: i) }
-        sizes.trackingMode = .selectOne
-        sizes.selectedSegment = 1
+        // One slider sets the size of the pen, the marker, the lines, the text, and the step numbers.
+        sizes.minValue = 0
+        sizes.maxValue = 1
+        sizes.doubleValue = 0.2
+        sizes.isContinuous = true
+        sizes.controlSize = .small
+        sizes.toolTip = "Size"
         sizes.target = self
         sizes.action = #selector(sizeChanged)
+        sizes.widthAnchor.constraint(equalToConstant: 90).isActive = true
+        let sizeLabel = NSTextField(labelWithString: "Size")
+        sizeLabel.textColor = .secondaryLabelColor
+        sizeLabel.font = NSFont.systemFont(ofSize: 11)
 
         let undo = NSButton(title: "Undo", target: self, action: #selector(undoTapped))
         let copy = NSButton(title: "Copy", target: self, action: #selector(done))
@@ -423,7 +451,7 @@ final class Editor: NSObject, NSWindowDelegate {
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let bar = NSStackView(views: [tools, colors, sizes, spacer, undo, copy])
+        let bar = NSStackView(views: [tools, colors, sizeLabel, sizes, spacer, undo, copy])
         bar.orientation = .horizontal
         bar.spacing = 10
         bar.edgeInsets = NSEdgeInsets(top: 0, left: pad, bottom: 0, right: pad)
@@ -434,6 +462,7 @@ final class Editor: NSObject, NSWindowDelegate {
 
         canvas.onDone = { [weak self] in self?.done() }
         canvas.onCancel = { [weak self] in self?.window.close() }
+        sizeChanged()
         canvas.onToolKey = { [weak self] t in
             self?.tools.selectedSegment = t.rawValue
             self?.toolChanged()
@@ -468,9 +497,9 @@ final class Editor: NSObject, NSWindowDelegate {
     }
 
     @objc func sizeChanged() {
-        let s = sizeSteps[max(sizes.selectedSegment, 0)]
-        canvas.lineWidth = s.line
-        canvas.fontSize = s.font
+        let v = CGFloat(sizes.doubleValue)
+        canvas.lineWidth = 1.5 + v * 12.5
+        canvas.fontSize = 12 + v * 40
     }
 
     @objc func undoTapped() { canvas.undo() }
