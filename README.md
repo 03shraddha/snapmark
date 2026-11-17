@@ -56,7 +56,21 @@ macOS has Markup. You open it from the thumbnail that shows after a screenshot. 
 
 ## Install
 
-You need macOS 13 or later and the Xcode command line tools.
+You need macOS 13 or later.
+
+### Download the app
+
+1. Download [SnapMark.zip](https://github.com/03shraddha/snapmark/releases/latest/download/SnapMark.zip).
+2. Open the zip file. Move SnapMark to the Applications folder.
+3. Open SnapMark. macOS blocks it because the app has no Apple developer signature.
+4. Open System Settings, then Privacy & Security. Click **Open Anyway** next to SnapMark.
+5. Press **Ctrl+Shift+A**. Allow Screen Recording permission, then quit SnapMark and open it again.
+
+The icon shows in the menu bar. The app works on Apple and Intel Macs.
+
+### Build from source
+
+You need the Xcode command line tools.
 
 ```bash
 git clone https://github.com/03shraddha/snapmark.git
