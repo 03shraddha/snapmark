@@ -26,6 +26,6 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 EOF
 
 swiftc -O main.swift -o "$APP/Contents/MacOS/SnapMark" \
-    -framework Cocoa -framework Carbon -framework CoreImage
+    -framework Cocoa -framework Carbon -framework CoreImage -framework Vision
 codesign --force --sign - "$APP"
 echo "Built $APP"
