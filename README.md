@@ -10,9 +10,9 @@ Click the image to watch the [30 second demo with sound](demo.mp4). The [video](
 
 1. Press **Ctrl+Shift+A**.
 2. Drag over an area of the screen.
-3. Annotate the image in the editor.
-4. Press **Enter**. The image goes to the clipboard.
-5. Paste it in Slack, WhatsApp, or any other app.
+3. Annotate the image in the editor. The pen is the default tool.
+4. Paste it in Slack, WhatsApp, or any other app. Each edit goes to the clipboard at once.
+5. Press **Enter** to close the editor.
 
 ## Tools
 
@@ -28,7 +28,7 @@ Click the image to watch the [30 second demo with sound](demo.mp4). The [video](
 | Step | N | Click to add the next number: 1, 2, 3. Each color has its own count. Option-click starts at 1 again |
 | Spot | S | Drag over an area. The remainder goes dark |
 
-The toolbar has six colors and a Size slider. The slider sets the size of the pen, the marker, the lines, the text, and the step numbers. **Cmd+Z** removes the last annotation. **Esc** cancels.
+The toolbar has six colors and a Size slider. The slider sets the size of the pen, the marker, the lines, the text, and the step numbers. **Cmd+Z** removes the last annotation. **Esc** closes the editor.
 
 ## Why not the Mac tool
 
@@ -36,7 +36,7 @@ macOS has Markup. You open it from the thumbnail that shows after a screenshot. 
 
 - A blur tool.
 - Step numbers.
-- One key to copy. Markup saves a file first.
+- No copy step. Each edit goes to the clipboard at once. Markup saves a file first.
 - No file on the Desktop.
 - One key for each tool.
 
@@ -47,7 +47,7 @@ macOS has Markup. You open it from the thumbnail that shows after a screenshot. 
 - The macOS `screencapture` tool draws the selection and returns the image.
 - The editor keeps each annotation in a list and draws the list on top of the image.
 - Blur uses a Core Image pixellate filter on the selected area.
-- On Enter, the app draws the image at full resolution and writes a PNG to the clipboard.
+- After each edit, the app draws the image at full resolution and writes a PNG to the clipboard.
 
 ## Privacy
 

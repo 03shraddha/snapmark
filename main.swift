@@ -39,8 +39,10 @@ final class CanvasView: NSView, NSTextFieldDelegate {
     let pointSize: NSSize
     let pixelSize: NSSize
 
-    var annotations: [Annotation] = []
-    var tool: Tool = .text
+    // Each change goes to the clipboard at once.
+    var annotations: [Annotation] = [] { didSet { onChange?() } }
+    var onChange: (() -> Void)?
+    var tool: Tool = .pen
     var color: NSColor = .systemRed
     var lineWidth: CGFloat = 4
     var fontSize: CGFloat = 20
@@ -397,7 +399,7 @@ final class Editor: NSObject, NSWindowDelegate {
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init()
 
-        window.title = "SnapMark    Enter: copy    Esc: cancel    Cmd+Z: undo"
+        window.title = "SnapMark    Each edit is copied    Enter: close    Cmd+Z: undo"
         window.level = .floating
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -416,7 +418,7 @@ final class Editor: NSObject, NSWindowDelegate {
         tools.segmentCount = names.count
         for (i, n) in names.enumerated() { tools.setLabel(n, forSegment: i) }
         tools.trackingMode = .selectOne
-        tools.selectedSegment = 0
+        tools.selectedSegment = Tool.pen.rawValue
         tools.target = self
         tools.action = #selector(toolChanged)
 
@@ -445,7 +447,7 @@ final class Editor: NSObject, NSWindowDelegate {
         sizeLabel.font = NSFont.systemFont(ofSize: 11)
 
         let undo = NSButton(title: "Undo", target: self, action: #selector(undoTapped))
-        let copy = NSButton(title: "Copy", target: self, action: #selector(done))
+        let copy = NSButton(title: "Done", target: self, action: #selector(done))
         copy.bezelColor = .controlAccentColor
         for b in [undo, copy] { b.bezelStyle = .rounded }
 
@@ -461,6 +463,7 @@ final class Editor: NSObject, NSWindowDelegate {
         for c in [tools, colors, sizes, undo, copy] as [NSControl] { c.refusesFirstResponder = true }
 
         canvas.onDone = { [weak self] in self?.done() }
+        canvas.onChange = { [weak self] in self?.copyImage() }
         canvas.onCancel = { [weak self] in self?.window.close() }
         sizeChanged()
         canvas.onToolKey = { [weak self] t in
@@ -505,14 +508,20 @@ final class Editor: NSObject, NSWindowDelegate {
     @objc func undoTapped() { canvas.undo() }
 
     @objc func done() {
-        guard let png = canvas.renderPNG() else { NSSound.beep(); return }
+        guard copyImage() else { NSSound.beep(); return }
+        window.close()
+    }
+
+    @discardableResult
+    func copyImage() -> Bool {
+        guard let png = canvas.renderPNG() else { return false }
         let pb = NSPasteboard.general
         pb.clearContents()
         let item = NSPasteboardItem()
         item.setData(png, forType: .png)
         if let tiff = NSBitmapImageRep(data: png)?.tiffRepresentation { item.setData(tiff, forType: .tiff) }
         pb.writeObjects([item])
-        window.close()
+        return true
     }
 
     func windowWillClose(_ notification: Notification) { onClose?() }
