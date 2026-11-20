@@ -27,5 +27,7 @@ EOF
 
 swiftc -O main.swift -o "$APP/Contents/MacOS/SnapMark" \
     -framework Cocoa -framework Carbon -framework CoreImage -framework Vision
-codesign --force --sign - "$APP"
+# The requirement names the app by its identifier only. Without it, each build gets a new
+# code hash, and macOS then drops the Screen Recording permission.
+codesign --force --sign - -r='designated => identifier "local.snapmark"' "$APP"
 echo "Built $APP"
